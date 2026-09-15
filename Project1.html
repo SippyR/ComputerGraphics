@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My First Rendering Algo</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: #050510;
+      color: white;
+      font-family: Arial, sans-serif;
+    }
+
+    canvas {
+      display: block;
+    }
+
+    #info {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      padding: 12px 14px;
+      background: rgba(0, 0, 0, 0.6);
+      border-radius: 8px;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+
+  <div id="info">
+    <b>Projection</b><br>
+  </div>
+
+<script>
+
+  //we add shapes (like lines) to this canvas
+  const canvas = document.getElementById("canvas");
+  const ctx = canvas.getContext("2d");
+
+  let {cubeVertices, cubeEdges} = createCube({x: 0, y: 0, z: 0});
+
+  let {cubeVertices: cubeVertices2, cubeEdges: cubeEdges2} = createCube({x: 3, y: 0, z: 0});
+
+  let objects = [
+    { vertices: cubeVertices, edges: cubeEdges },
+    { vertices: cubeVertices2, edges: cubeEdges2 }
+  ];
+  let camera = {x: 0, y: 0, z: -10};
+
+  function drawAllObjects(objects, camera) {
+    //here we set up and clear the canvas, every draw frame
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#050510";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    for (let obj of objects) {
+      draw(obj.vertices, obj.edges, camera);
+    }
+    drawStaticObjects();
+  }
+
+  function draw(vertices, edges, camera) {
+
+
+    // here we will store u,v coordinates for the vertices, 
+    // projected onto our 2d plane
+    let projectedVertices = [];
+
+    //- loop through the original vertices (X, Y, Z)
+    //- and determine their position in 3D space relative to camera (x, y, z)
+    //- then project them onto the 2D plane
+    for(let v = 0; v< vertices.length; v++){   //  you could also write it foreach...
+       //console.log("original position:");  //helpful to print things
+       //console.log( vertices[v] );
+
+       //console.log("camera-relative position");
+       let camVert = {}; 
+       camVert.x = vertices[v].x - camera.x; //**** TO DO
+       camVert.y = vertices[v].y - camera.y; //**** TO DO
+       camVert.z = vertices[v].z - camera.z; //**** TO DO
+       //console.log( camVert );
+
+       //console.log("projected position"); 
+       let canvasPos = {};
+       canvasPos.u = camVert.x / camVert.z; //**** TO DO  
+       canvasPos.v = camVert.y / camVert.z; //**** TO DO 
+       //console.log( canvasPos );
+
+       //console.log("scale and center"); 
+       canvasPos.u = canvasPos.u * canvas.width + canvas.width/2;
+       canvasPos.v = canvasPos.v * canvas.height + canvas.height/2;
+       //console.log( canvasPos );
+
+       projectedVertices.push(canvasPos);
+       //console.log("---------------"); 
+
+    }
+
+    //loop through the edges
+    //  find the newly computed projected vertices - 2 per edge
+    //  draw the line
+    for(let e = 0; e < edges.length; e++){
+      
+      //first vertex
+      let e1 = edges[e][0]; //idx
+      let u1 = projectedVertices[ e1 ].u; 
+      let v1 = canvas.height - projectedVertices[ e1 ].v;  //TO DO- explain why did I do this? 
+      // Because the canvas coordinate system has the origin(0,0) at the top-left corner
+
+      //second vertex
+      let e2 = edges[e][1]; //idx
+      let u2 = projectedVertices[ e2 ].u;
+      let v2 = canvas.height - projectedVertices[ e2 ].v;  //TO DO- explain why did I do this?
+
+      drawLine(u1, v1, u2, v2);
+    }
+
+
+
+  }
+
+  function drawStaticObjects() {
+    // Draw the static ship frame with direct canvas coordinates
+    drawLine(1.5*canvas.width/4, 2*canvas.height/4, 2.5*canvas.width/4, 2*canvas.height/4); // Top edge
+    drawLine(1.5*canvas.width/4, 2*canvas.height/4, 1.5*canvas.width/4, 3*canvas.height/4); // Left edge
+    drawLine(2.5*canvas.width/4, 2*canvas.height/4, 2.5*canvas.width/4, 3*canvas.height/4); // Right edge
+    drawLine(1.5*canvas.width/4, 3*canvas.height/4, 2.5*canvas.width/4, 3*canvas.height/4); // Bottom edge
+
+    drawLine(0, 1.5*canvas.height/4, 1.5*canvas.width/4, 2*canvas.height/4); // Top Left diagonal to left edge
+    drawLine(canvas.width, 1.5*canvas.height/4, 2.5*canvas.width/4, 2*canvas.height/4); // Top Right diagonal to right edge
+    drawLine(1.5*canvas.width/4, 3*canvas.height/4, 0, 3.5*canvas.height/4); // Bottom Left diagonal to left edge
+    drawLine(2.5*canvas.width/4, 3*canvas.height/4, canvas.width, 3.5*canvas.height/4); // Bottom Right diagonal to right edge
+
+    // Create the target square in the center of the ship frame
+    drawLine(1.9*canvas.width/4, 2.6*canvas.height/4, 2.1*canvas.width/4, 2.6*canvas.height/4); // Top edge of target square
+    drawLine(1.9*canvas.width/4, 2.6*canvas.height/4, 1.9*canvas.width/4, 2.4*canvas.height/4); // Left edge of target square
+    drawLine(2.1*canvas.width/4, 2.4*canvas.height/4, 2.1*canvas.width/4, 2.6*canvas.height/4); // Right edge of target square
+    drawLine(1.9*canvas.width/4, 2.4*canvas.height/4, 2.1*canvas.width/4, 2.4*canvas.height/4); // Bottom edge of target square
+  }
+
+  //This uses a built in 'drawLine' function, provided by the javascript canvas
+  function drawLine(x1, y1, x2, y2){
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = "white";
+
+    //this is how you draw a line on the canvas 
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+  }
+
+
+  //this is how we detect events- 
+
+  // do nothing for now....
+    document.addEventListener("keydown", (event) => {
+
+      event.preventDefault();
+       switch (event.code) {
+        case "ArrowUp":
+          camera.y += 1;
+          console.log("Up arrow pressed");
+          drawAllObjects(objects, camera);
+          break;
+        case "ArrowDown":
+          camera.y -= 1;
+          console.log("Down arrow pressed");
+          drawAllObjects(objects, camera);
+          break;
+        case "ArrowLeft":
+          camera.x += 1;
+          console.log("Left arrow pressed");
+          drawAllObjects(objects, camera);
+          break;
+        case "ArrowRight":
+          camera.x -= 1;
+          console.log("Right arrow pressed");
+          drawAllObjects(objects, camera);
+          break;
+        case "KeyR":
+          //****TO DO: reset camera
+          camera.x = 0;
+          camera.y = 0;
+          camera.z = -10;
+          console.log("Reset");
+          drawAllObjects(objects, camera);
+          break;
+        case "Space": 
+          console.log("Spacebar pressed");
+          // Check if any object is targeted
+          for (let i = 0; i < objects.length; i++) {
+            if (isObjectTargeted(objects[i], camera)) {
+              console.log("Object Destroyed!");
+              // Remove the targeted object from the objects array
+              objects.splice(i, 1);
+            }
+          }
+          drawAllObjects(objects, camera);
+          break;
+
+        default:
+          return; 
+      
+      }
+    });
+
+  function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    drawAllObjects(objects, camera);
+  }
+
+  function createCube(origin) {
+
+    let cubeVertices = [ 
+    { x:  1,  y: 1,  z: 1},   // A, idx 0
+    { x: -1,  y: 1,  z: 1},   // B, idx 1
+    { x:  1,  y: -1, z: 1},   // C, idx 2
+    { x: -1,  y: -1, z:  1},  // D, idx 3
+    { x:  1,  y: 1,  z: -1},  // E, idx 4
+    { x: -1,  y: 1,  z: -1},  // F, idx 5
+    { x:  1,  y: -1, z:  -1}, // G, idx 6
+    { x: -1,  y: -1, z: -1}   // H, idx 7
+  ];
+
+  // an array of the indics for the two vertices in each edge
+  let cubeEdges = [
+    [0, 1], //AB
+    [0, 2], //AC
+    [0, 4], //AE
+    [2, 3], //CD
+    [1, 3], //BD
+    [2, 6], //CG
+    [4, 5], //EF
+    [4, 6], //EG
+    [1, 5], //BF
+    [6, 7], //GH
+    [5, 7], //FH
+    [3, 7], //DH
+  ];
+
+  for (let i = 0; i < cubeVertices.length; i++) {
+    cubeVertices[i].x += origin.x;
+    cubeVertices[i].y += origin.y;
+    cubeVertices[i].z += origin.z;
+  }
+
+  return {cubeVertices, cubeEdges};
+  }
+
+  function isObjectTargeted(object, camera) {
+    // Check if the object is within the target square in the center of the ship frame
+    // Determine the center of the object in 3D space
+    let center = { x: 0, y: 0, z: 0 };
+    for (let vertex of object.vertices) {
+      center.x += vertex.x;
+      center.y += vertex.y;
+      center.z += vertex.z;
+    }
+    center.x /= object.vertices.length;
+    center.y /= object.vertices.length;
+    center.z /= object.vertices.length;
+
+    // Determine the position of the center relative to the camera
+    let camCoords = {
+      x: center.x - camera.x,
+      y: center.y - camera.y,
+      z: center.z - camera.z
+    };
+
+    // Project the center onto the 2D plane
+    let projected = {
+      u: camCoords.x / camCoords.z,
+      v: camCoords.y / camCoords.z
+    };
+
+    // Scale and center the projected coordinates
+    projected.u = projected.u * canvas.width + canvas.width / 2;
+    projected.v = projected.v * canvas.height + canvas.height / 2;
+    projected.v = canvas.height - projected.v; // Invert v for canvas coordinates
+
+    console.log("Projected coordinates of object center:", projected);
+    // Check if the projected coordinates are within the target square
+    let targetLeft = 1.9 * canvas.width / 4;
+    let targetRight = 2.1 * canvas.width / 4;
+    let targetTop = 2.6 * canvas.height / 4;
+    let targetBottom = 2.4 * canvas.height / 4;
+
+    console.log("Target square boundaries:", {
+      left: targetLeft,
+      right: targetRight,
+      top: targetTop,
+      bottom: targetBottom
+    });
+
+    return projected.u >= targetLeft && projected.u <= targetRight &&
+           projected.v <= targetTop && projected.v >= targetBottom;
+
+  }
+
+  window.addEventListener("resize", resizeCanvas);
+  resizeCanvas();
+
+
+
+</script>
+</body>
+</html>
