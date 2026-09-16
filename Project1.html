@@ -59,21 +59,32 @@ when a hazard reaches z=0, remove health/game over and destroy hazard
   let hazardLs= [];
   let moveCount=0;
   //include function to create multiple hazards
-    let {cubeVertices, cubeEdges} = createCube({x:(Math.floor(Math.random()*11)), y: (Math.floor(Math.random()*11)), z:10});
-    hazardLs.push({vertices: cubeVertices, edges: cubeEdges});
-    console.log(hazardLs);
-  
-  function moveHazard(){
 
+  function createHazard(){
+    let {cubeVertices, cubeEdges} = createCube({x:(Math.floor(Math.random()*11)), y: (Math.floor(Math.random()*11)), z:11});
+    hazardLs.push({vertices: cubeVertices, edges: cubeEdges});
+    
+  }
+
+  function moveHazard(){
+    for(let obj of hazardLs){
+      obj.vertices = obj.vertices.map(v=> ({x:v.x,y:v.y,z:v.z-1}));
+    }
   }
   function drawAllObjects(hazardLs, camera) {
     //here we set up and clear the canvas, every draw frame
+    if(moveCount%2===0){
+      createHazard();
+    }
+    
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = "#050510";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     for (let obj of hazardLs) {
       draw(obj.vertices, obj.edges, camera);
     }
+    moveHazard();
+    
     drawStaticObjects();
   }
 
