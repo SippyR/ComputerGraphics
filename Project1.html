@@ -41,23 +41,37 @@
   //we add shapes (like lines) to this canvas
   const canvas = document.getElementById("canvas");
   const ctx = canvas.getContext("2d");
+/*
+TO DO!!!
+make function to create hazards when the move count mod 2 is 0
+move hazards towards the player after each major key press
+when a hazard reaches z=0, remove health/game over and destroy hazard
+*/
+  //let {cubeVertices, cubeEdges} = createCube({x: 0, y: 0, z: 10});
 
-  let {cubeVertices, cubeEdges} = createCube({x: 0, y: 0, z: 0});
-
-  let {cubeVertices: cubeVertices2, cubeEdges: cubeEdges2} = createCube({x: 3, y: 0, z: 0});
-
-  let objects = [
+  //let {cubeVertices: cubeVertices2, cubeEdges: cubeEdges2} = createCube({x: 3, y: 0, z: 0});
+  
+ /* let objects = [
     { vertices: cubeVertices, edges: cubeEdges },
     { vertices: cubeVertices2, edges: cubeEdges2 }
-  ];
+  ]; */
   let camera = {x: 0, y: 0, z: -10};
+  let hazardLs= [];
+  let moveCount=0;
+  //include function to create multiple hazards
+    let {cubeVertices, cubeEdges} = createCube({x:(Math.floor(Math.random()*11)), y: (Math.floor(Math.random()*11)), z:10});
+    hazardLs.push({vertices: cubeVertices, edges: cubeEdges});
+    console.log(hazardLs);
+  
+  function moveHazard(){
 
-  function drawAllObjects(objects, camera) {
+  }
+  function drawAllObjects(hazardLs, camera) {
     //here we set up and clear the canvas, every draw frame
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = "#050510";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    for (let obj of objects) {
+    for (let obj of hazardLs) {
       draw(obj.vertices, obj.edges, camera);
     }
     drawStaticObjects();
@@ -165,22 +179,26 @@
         case "ArrowUp":
           camera.y += 1;
           console.log("Up arrow pressed");
-          drawAllObjects(objects, camera);
+          drawAllObjects(hazardLs, camera);
+          moveCount+=1;
           break;
         case "ArrowDown":
           camera.y -= 1;
           console.log("Down arrow pressed");
-          drawAllObjects(objects, camera);
+          drawAllObjects(hazardLs, camera);
+          moveCount+=1;
           break;
         case "ArrowLeft":
           camera.x += 1;
           console.log("Left arrow pressed");
-          drawAllObjects(objects, camera);
+          drawAllObjects(hazardLs, camera);
+          moveCount+=1;
           break;
         case "ArrowRight":
           camera.x -= 1;
           console.log("Right arrow pressed");
-          drawAllObjects(objects, camera);
+          drawAllObjects(hazardLs, camera);
+          moveCount+=1;
           break;
         case "KeyR":
           //****TO DO: reset camera
@@ -188,19 +206,20 @@
           camera.y = 0;
           camera.z = -10;
           console.log("Reset");
-          drawAllObjects(objects, camera);
+          drawAllObjects(hazardLs, camera);
           break;
         case "Space": 
           console.log("Spacebar pressed");
           // Check if any object is targeted
-          for (let i = 0; i < objects.length; i++) {
-            if (isObjectTargeted(objects[i], camera)) {
+          for (let i = 0; i < hazardLs.length; i++) {
+            if (isObjectTargeted(hazardLs[i], camera)) {
               console.log("Object Destroyed!");
-              // Remove the targeted object from the objects array
-              objects.splice(i, 1);
+              // Remove the targeted object from the hazardLs array
+              hazardLs.splice(i, 1);
             }
           }
-          drawAllObjects(objects, camera);
+          drawAllObjects(hazardLs, camera);
+
           break;
 
         default:
@@ -212,7 +231,7 @@
   function resizeCanvas() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
-    drawAllObjects(objects, camera);
+    drawAllObjects(hazardLs, camera);
   }
 
   function createCube(origin) {
