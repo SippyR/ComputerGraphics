@@ -63,14 +63,12 @@ when a hazard reaches z=0, remove health/game over and destroy hazard
   const cols = 320;
   let pixelGrid = Array.from({ length: cols }, () => Array(rows).fill("#050510"));
 
-  let seePixelOutline = true; 
+  let seePixelOutline = false; 
 
   function clearPixelGrid() {
     pixelGrid = Array.from({ length: cols }, () => Array(rows).fill("#050510"));
   }
 
-  makePixelatedLine(50, 90, 100, 50, "#00FF00" ); 
-  makePixelatedLine(120, 100, 75, 75, "#00FF00" );
 
 
   function setPixelColor(u,v,color){
@@ -113,6 +111,15 @@ when a hazard reaches z=0, remove health/game over and destroy hazard
   let moveCount=0;
   //include function to create multiple hazards
 
+  let stars = [];
+  // Create stars in the background
+  for (let i = 0; i < 50; i++) {
+    stars.push({
+      x: Math.random() * cols,
+      y: Math.random() * rows
+    });
+  }
+
   function createHazard(){
     let {cubeVertices, cubeEdges} = createCube({x:(Math.floor(Math.random()*11)-5), y: (Math.floor(Math.random()*11)-5), z:11});
     hazardLs.push({vertices: cubeVertices, edges: cubeEdges});
@@ -144,6 +151,10 @@ when a hazard reaches z=0, remove health/game over and destroy hazard
         continue; // Skip drawing this object
       }
       draw(obj.vertices, obj.edges, camera);
+    }
+    // Draw the stars
+    for (let star of stars) {
+      setPixelColor(star.x, star.y, "#FFFFFF");
     }
     drawStaticObjects();
     // Draw the Pixel Grid
@@ -252,6 +263,7 @@ when a hazard reaches z=0, remove health/game over and destroy hazard
     makePixelatedLine(1.9 * cols / 4, 2.6 * rows / 4, 1.9 * cols / 4, 2.4 * rows / 4, c); // Left edge
     makePixelatedLine(2.1 * cols / 4, 2.4 * rows / 4, 2.1 * cols / 4, 2.6 * rows / 4, c); // Right edge
     makePixelatedLine(1.9 * cols / 4, 2.4 * rows / 4, 2.1 * cols / 4, 2.4 * rows / 4, c); // Bottom edge
+
   }
 
   //This uses a built in 'drawLine' function, provided by the javascript canvas
@@ -276,24 +288,52 @@ when a hazard reaches z=0, remove health/game over and destroy hazard
        switch (event.code) {
         case "ArrowUp":
           camera.y += 1;
+          for (let star of stars) {
+            star.y += 1; // Move stars down when the camera moves up
+            if (star.y > rows) {
+              star.y = 0; // Reset star to the top if it goes off the bottom
+              star.x = Math.random() * cols; // Randomize x position
+            }
+          }
           console.log("Up arrow pressed");
           drawAllObjects(hazardLs, camera);
           moveCount+=1;
           break;
         case "ArrowDown":
           camera.y -= 1;
+          for (let star of stars) {
+            star.y -= 1; // Move stars up when the camera moves down
+            if (star.y < 0) {
+              star.y = rows; // Reset star to the bottom if it goes off the top
+              star.x = Math.random() * cols; // Randomize x position
+            }
+          }
           console.log("Down arrow pressed");
           drawAllObjects(hazardLs, camera);
           moveCount+=1;
           break;
         case "ArrowLeft":
-          camera.x += 1;
+          camera.x -= 1;
+          for (let star of stars) {
+            star.x -= 1; // Move stars right when the camera moves left
+            if (star.x < 0) {
+              star.x = cols; // Reset star to the right if it goes off the left
+              star.y = Math.random() * rows; // Randomize y position
+            }
+          }
           console.log("Left arrow pressed");
           drawAllObjects(hazardLs, camera);
           moveCount+=1;
           break;
         case "ArrowRight":
-          camera.x -= 1;
+          camera.x += 1;
+          for (let star of stars) {
+            star.x += 1; // Move stars left when the camera moves right
+            if (star.x > cols) {
+              star.x = 0; // Reset star to the left if it goes off the right
+              star.y = Math.random() * rows; // Randomize y position
+            }
+          }
           console.log("Right arrow pressed");
           drawAllObjects(hazardLs, camera);
           moveCount+=1;
