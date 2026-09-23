@@ -41,30 +41,150 @@
   //we add shapes (like lines) to this canvas
   const canvas = document.getElementById("canvas");
   const ctx = canvas.getContext("2d");
+/*
+TO DO!!!
+bug fix to make hazards spawn only when they need to
+add game over screen
+add score and hud for player
+add scope to better recognize where the player is aiming
+when a hazard reaches z=0, remove health/game over and destroy hazard
+*/
+  //let {cubeVertices, cubeEdges} = createCube({x: 0, y: 0, z: 10});
 
-  let {cubeVertices, cubeEdges} = createCube({x: 0, y: 0, z: 0});
-
-  let {cubeVertices: cubeVertices2, cubeEdges: cubeEdges2} = createCube({x: 3, y: 0, z: 0});
-
-  let objects = [
+  //let {cubeVertices: cubeVertices2, cubeEdges: cubeEdges2} = createCube({x: 3, y: 0, z: 0});
+  
+ /* let objects = [
     { vertices: cubeVertices, edges: cubeEdges },
     { vertices: cubeVertices2, edges: cubeEdges2 }
-  ];
-  let camera = {x: 0, y: 0, z: -10};
+  ]; */
+  let score = 0;
 
-  function drawAllObjects(objects, camera) {
+  const rows = 200;
+  const cols = 320;
+  let pixelGrid = Array.from({ length: cols }, () => Array(rows).fill("#050510"));
+
+  let seePixelOutline = false; 
+
+  function clearPixelGrid() {
+    pixelGrid = Array.from({ length: cols }, () => Array(rows).fill("#050510"));
+  }
+
+
+
+  function setPixelColor(u,v,color){
+    u = Math.round(u);
+    v = Math.round(v);
+
+    if (u >= 0 && u < cols && v >= 0 && v < rows) {
+      pixelGrid[u][v] = color; 
+    }
+    // console.log("setPixelColor", u, v, color);
+  }
+
+  function makePixelatedLine(u1, v1, u2, v2, color){
+    console.log("makePixelatedLine", u1, v1, u2, v2, color);
+
+    let dx = u2 - u1;
+    let dy = v2 - v1;
+    
+    // Find whether the line is longer horizontally or vertically
+    let steps = Math.max(Math.abs(dx), Math.abs(dy));
+
+    // Calculate how much to move in u and v each step
+    let xInc = dx / steps;
+    let yInc = dy / steps;
+
+    let x = u1;
+    let y = v1;
+
+    // Draw the pixels smoothly across the longest axis
+    for (let i = 0; i <= steps; i++) {
+      setPixelColor(x, y, color);
+      x += xInc;
+      y += yInc;
+    }
+
+  }
+
+  let camera = {x: 0, y: 0, z: -10};
+  let hazardLs= [];
+  let moveCount=0;
+  //include function to create multiple hazards
+
+  let stars = [];
+  // Create stars in the background
+  for (let i = 0; i < 50; i++) {
+    stars.push({
+      x: Math.random() * cols,
+      y: Math.random() * rows
+    });
+  }
+
+  function createHazard(){
+    let {cubeVertices, cubeEdges} = createCube({x:(Math.floor(Math.random()*11)-5), y: (Math.floor(Math.random()*11)-5), z:11});
+    hazardLs.push({vertices: cubeVertices, edges: cubeEdges});
+    
+  }
+
+  function moveHazard(){
+    for(let obj of hazardLs){
+      obj.vertices = obj.vertices.map(v=> ({x:v.x,y:v.y,z:v.z-1}));
+    }
+  }
+  function drawAllObjects(hazardLs, camera) {
     //here we set up and clear the canvas, every draw frame
+    if(moveCount%5===0){
+      createHazard();
+    }
+    
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = "#050510";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    for (let obj of objects) {
+
+    clearPixelGrid();
+
+    // Draw each hazard object
+    for (let obj of hazardLs) {
+      if(obj.vertices.some(v => v.z <= camera.z)) {
+        // Remove the object if it is behind the camera
+        hazardLs.splice(hazardLs.indexOf(obj), 1);
+        continue; // Skip drawing this object
+      }
       draw(obj.vertices, obj.edges, camera);
     }
+    // Draw the stars
+    for (let star of stars) {
+      setPixelColor(star.x, star.y, "#FFFFFF");
+    }
     drawStaticObjects();
+    // Draw the Pixel Grid
+    for(v=0; v< 200; v++){
+      for(u=0; u<320; u++){
+
+        //if you want to see what is going on
+        // console.log(u);
+        // console.log(v);
+        // console.log(pixelGrid[u][v]);
+        // console.log("----")
+
+        ctx.fillStyle = pixelGrid[u][v];
+        ctx.fillRect(u*5, v*5, 5, 5);
+
+        if( seePixelOutline ){
+          ctx.lineWidth = 1;
+          ctx.strokeStyle = "#444444";
+          ctx.strokeRect(u*5, v*5, 5, 5);
+        }
+
+      }
+    }
+
+    moveHazard();
+    
+    
   }
 
   function draw(vertices, edges, camera) {
-
 
     // here we will store u,v coordinates for the vertices, 
     // projected onto our 2d plane
@@ -91,8 +211,8 @@
        //console.log( canvasPos );
 
        //console.log("scale and center"); 
-       canvasPos.u = canvasPos.u * canvas.width + canvas.width/2;
-       canvasPos.v = canvasPos.v * canvas.height + canvas.height/2;
+       canvasPos.u = canvasPos.u * cols + cols/2;
+       canvasPos.v = canvasPos.v * rows + rows/2;
        //console.log( canvasPos );
 
        projectedVertices.push(canvasPos);
@@ -104,19 +224,27 @@
     //  find the newly computed projected vertices - 2 per edge
     //  draw the line
     for(let e = 0; e < edges.length; e++){
-      
+      for(let i=0; i<=2;i++){
+        let e1 = edges[e][i]; //idx
+        let u1 = projectedVertices[ e1 ].u; 
+        let v1 = rows - projectedVertices[ e1 ].v;
+        let e2 = edges[e][i===2?0:(i+1)]; //idx
+        let u2 = projectedVertices[ e2 ].u;
+        let v2 = rows - projectedVertices[ e2 ].v;
+        makePixelatedLine(u1, v1, u2, v2, "#00FF00");
+      }
       //first vertex
-      let e1 = edges[e][0]; //idx
+      /*let e1 = edges[e][0]; //idx
       let u1 = projectedVertices[ e1 ].u; 
-      let v1 = canvas.height - projectedVertices[ e1 ].v;  //TO DO- explain why did I do this? 
+      let v1 = rows - projectedVertices[ e1 ].v;  //TO DO- explain why did I do this? 
       // Because the canvas coordinate system has the origin(0,0) at the top-left corner
 
       //second vertex
       let e2 = edges[e][1]; //idx
       let u2 = projectedVertices[ e2 ].u;
-      let v2 = canvas.height - projectedVertices[ e2 ].v;  //TO DO- explain why did I do this?
+      let v2 = rows - projectedVertices[ e2 ].v;  //TO DO- explain why did I do this?*/
 
-      drawLine(u1, v1, u2, v2);
+      
     }
 
 
@@ -125,21 +253,25 @@
 
   function drawStaticObjects() {
     // Draw the static ship frame with direct canvas coordinates
-    drawLine(1.5*canvas.width/4, 2*canvas.height/4, 2.5*canvas.width/4, 2*canvas.height/4); // Top edge
-    drawLine(1.5*canvas.width/4, 2*canvas.height/4, 1.5*canvas.width/4, 3*canvas.height/4); // Left edge
-    drawLine(2.5*canvas.width/4, 2*canvas.height/4, 2.5*canvas.width/4, 3*canvas.height/4); // Right edge
-    drawLine(1.5*canvas.width/4, 3*canvas.height/4, 2.5*canvas.width/4, 3*canvas.height/4); // Bottom edge
+    let c = "#FFFFFF"; // White color for the HUD
 
-    drawLine(0, 1.5*canvas.height/4, 1.5*canvas.width/4, 2*canvas.height/4); // Top Left diagonal to left edge
-    drawLine(canvas.width, 1.5*canvas.height/4, 2.5*canvas.width/4, 2*canvas.height/4); // Top Right diagonal to right edge
-    drawLine(1.5*canvas.width/4, 3*canvas.height/4, 0, 3.5*canvas.height/4); // Bottom Left diagonal to left edge
-    drawLine(2.5*canvas.width/4, 3*canvas.height/4, canvas.width, 3.5*canvas.height/4); // Bottom Right diagonal to right edge
+    // Draw the static ship frame onto the pixel grid
+    makePixelatedLine(1.5 * cols / 4, 2 * rows / 4, 2.5 * cols / 4, 2 * rows / 4, c); // Top edge
+    makePixelatedLine(1.5 * cols / 4, 2 * rows / 4, 1.5 * cols / 4, 3 * rows / 4, c); // Left edge
+    makePixelatedLine(2.5 * cols / 4, 2 * rows / 4, 2.5 * cols / 4, 3 * rows / 4, c); // Right edge
+    makePixelatedLine(1.5 * cols / 4, 3 * rows / 4, 2.5 * cols / 4, 3 * rows / 4, c); // Bottom edge
+
+    makePixelatedLine(0, 1.5 * rows / 4, 1.5 * cols / 4, 2 * rows / 4, c); // Top Left diagonal
+    makePixelatedLine(cols, 1.5 * rows / 4, 2.5 * cols / 4, 2 * rows / 4, c); // Top Right diagonal
+    makePixelatedLine(1.5 * cols / 4, 3 * rows / 4, 0, 3.5 * rows / 4, c); // Bottom Left diagonal
+    makePixelatedLine(2.5 * cols / 4, 3 * rows / 4, cols, 3.5 * rows / 4, c); // Bottom Right diagonal
 
     // Create the target square in the center of the ship frame
-    drawLine(1.9*canvas.width/4, 2.6*canvas.height/4, 2.1*canvas.width/4, 2.6*canvas.height/4); // Top edge of target square
-    drawLine(1.9*canvas.width/4, 2.6*canvas.height/4, 1.9*canvas.width/4, 2.4*canvas.height/4); // Left edge of target square
-    drawLine(2.1*canvas.width/4, 2.4*canvas.height/4, 2.1*canvas.width/4, 2.6*canvas.height/4); // Right edge of target square
-    drawLine(1.9*canvas.width/4, 2.4*canvas.height/4, 2.1*canvas.width/4, 2.4*canvas.height/4); // Bottom edge of target square
+    makePixelatedLine(1.9 * cols / 4, 2.6 * rows / 4, 2.1 * cols / 4, 2.6 * rows / 4, c); // Top edge
+    makePixelatedLine(1.9 * cols / 4, 2.6 * rows / 4, 1.9 * cols / 4, 2.4 * rows / 4, c); // Left edge
+    makePixelatedLine(2.1 * cols / 4, 2.4 * rows / 4, 2.1 * cols / 4, 2.6 * rows / 4, c); // Right edge
+    makePixelatedLine(1.9 * cols / 4, 2.4 * rows / 4, 2.1 * cols / 4, 2.4 * rows / 4, c); // Bottom edge
+
   }
 
   //This uses a built in 'drawLine' function, provided by the javascript canvas
@@ -164,23 +296,55 @@
        switch (event.code) {
         case "ArrowUp":
           camera.y += 1;
+          for (let star of stars) {
+            star.y += 1; // Move stars down when the camera moves up
+            if (star.y > rows) {
+              star.y = 0; // Reset star to the top if it goes off the bottom
+              star.x = Math.random() * cols; // Randomize x position
+            }
+          }
           console.log("Up arrow pressed");
-          drawAllObjects(objects, camera);
+          drawAllObjects(hazardLs, camera);
+          moveCount+=1;
           break;
         case "ArrowDown":
           camera.y -= 1;
+          for (let star of stars) {
+            star.y -= 1; // Move stars up when the camera moves down
+            if (star.y < 0) {
+              star.y = rows; // Reset star to the bottom if it goes off the top
+              star.x = Math.random() * cols; // Randomize x position
+            }
+          }
           console.log("Down arrow pressed");
-          drawAllObjects(objects, camera);
+          drawAllObjects(hazardLs, camera);
+          moveCount+=1;
           break;
         case "ArrowLeft":
-          camera.x += 1;
+          camera.x -= 1;
+          for (let star of stars) {
+            star.x -= 1; // Move stars right when the camera moves left
+            if (star.x < 0) {
+              star.x = cols; // Reset star to the right if it goes off the left
+              star.y = Math.random() * rows; // Randomize y position
+            }
+          }
           console.log("Left arrow pressed");
-          drawAllObjects(objects, camera);
+          drawAllObjects(hazardLs, camera);
+          moveCount+=1;
           break;
         case "ArrowRight":
-          camera.x -= 1;
+          camera.x += 1;
+          for (let star of stars) {
+            star.x += 1; // Move stars left when the camera moves right
+            if (star.x > cols) {
+              star.x = 0; // Reset star to the left if it goes off the right
+              star.y = Math.random() * rows; // Randomize y position
+            }
+          }
           console.log("Right arrow pressed");
-          drawAllObjects(objects, camera);
+          drawAllObjects(hazardLs, camera);
+          moveCount+=1;
           break;
         case "KeyR":
           //****TO DO: reset camera
@@ -188,19 +352,22 @@
           camera.y = 0;
           camera.z = -10;
           console.log("Reset");
-          drawAllObjects(objects, camera);
+          drawAllObjects(hazardLs, camera);
           break;
         case "Space": 
           console.log("Spacebar pressed");
           // Check if any object is targeted
-          for (let i = 0; i < objects.length; i++) {
-            if (isObjectTargeted(objects[i], camera)) {
+          for (let i = 0; i < hazardLs.length; i++) {
+            if (isObjectTargeted(hazardLs[i], camera)) {
               console.log("Object Destroyed!");
-              // Remove the targeted object from the objects array
-              objects.splice(i, 1);
+              // Remove the targeted object from the hazardLs array
+              hazardLs.splice(i, 1);
+              score += 1; // Increment score
+              updateHUD(); // Update the HUD with the new score
             }
           }
-          drawAllObjects(objects, camera);
+          drawAllObjects(hazardLs, camera);
+
           break;
 
         default:
@@ -212,7 +379,7 @@
   function resizeCanvas() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
-    drawAllObjects(objects, camera);
+    drawAllObjects(hazardLs, camera);
   }
 
   function createCube(origin) {
@@ -230,19 +397,30 @@
 
   // an array of the indics for the two vertices in each edge
   let cubeEdges = [
-    [0, 1], //AB
-    [0, 2], //AC
-    [0, 4], //AE
-    [2, 3], //CD
-    [1, 3], //BD
-    [2, 6], //CG
-    [4, 5], //EF
-    [4, 6], //EG
-    [1, 5], //BF
-    [6, 7], //GH
-    [5, 7], //FH
-    [3, 7], //DH
-  ];
+  // Front face (A,B,D,C)
+  [0, 1, 3], // ABD
+  [0, 3, 2], // ADC
+
+  // Back face (E,F,H,G)
+  [4, 5, 7], // EFH
+  [4, 7, 6], // EHG
+
+  // Left face (A,C,G,E)
+  [0, 2, 6], // ACG
+  [0, 6, 4], // AGE
+
+  // Right face (B,D,H,F)
+  [1, 3, 7], // BDH
+  [1, 7, 5], // BHF
+
+  // Top face (A,B,F,E)
+  [0, 1, 5], // ABF
+  [0, 5, 4], // AFE
+
+  // Bottom face (C,D,H,G)
+  [2, 3, 7], // CDH
+  [2, 7, 6], // CHG
+];
 
   for (let i = 0; i < cubeVertices.length; i++) {
     cubeVertices[i].x += origin.x;
@@ -280,16 +458,16 @@
     };
 
     // Scale and center the projected coordinates
-    projected.u = projected.u * canvas.width + canvas.width / 2;
-    projected.v = projected.v * canvas.height + canvas.height / 2;
-    projected.v = canvas.height - projected.v; // Invert v for canvas coordinates
+    projected.u = projected.u * cols + cols / 2;
+    projected.v = projected.v * rows + rows / 2;
+    projected.v = rows - projected.v; // Invert v for canvas coordinates
 
     console.log("Projected coordinates of object center:", projected);
     // Check if the projected coordinates are within the target square
-    let targetLeft = 1.9 * canvas.width / 4;
-    let targetRight = 2.1 * canvas.width / 4;
-    let targetTop = 2.6 * canvas.height / 4;
-    let targetBottom = 2.4 * canvas.height / 4;
+    let targetLeft = 1.9 * cols/ 4;
+    let targetRight = 2.1 * cols / 4;
+    let targetTop = 2.6 * rows / 4;
+    let targetBottom = 2.4 * rows / 4;
 
     console.log("Target square boundaries:", {
       left: targetLeft,
@@ -303,9 +481,14 @@
 
   }
 
+  function updateHUD() {
+    const infoDiv = document.getElementById("info");
+    infoDiv.innerHTML = `<b>Projection</b><br>Score: ${score}`;
+  }
+
   window.addEventListener("resize", resizeCanvas);
   resizeCanvas();
-
+  updateHUD(); 
 
 
 </script>
