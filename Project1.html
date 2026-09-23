@@ -58,7 +58,7 @@ when a hazard reaches z=0, remove health/game over and destroy hazard
     { vertices: cubeVertices2, edges: cubeEdges2 }
   ]; */
   let score = 0;
-
+  let mode = "rasterized"// or "wireframe"
   const rows = 200;
   const cols = 320;
   let pixelGrid = Array.from({ length: cols }, () => Array(rows).fill("#050510"));
@@ -82,7 +82,7 @@ when a hazard reaches z=0, remove health/game over and destroy hazard
   }
 
   function makePixelatedLine(u1, v1, u2, v2, color){
-    console.log("makePixelatedLine", u1, v1, u2, v2, color);
+    //console.log("makePixelatedLine", u1, v1, u2, v2, color);
 
     let dx = u2 - u1;
     let dy = v2 - v1;
@@ -105,7 +105,7 @@ when a hazard reaches z=0, remove health/game over and destroy hazard
     }
 
   }
-
+  let gameOver=false;
   let camera = {x: 0, y: 0, z: -10};
   let hazardLs= [];
   let moveCount=0;
@@ -120,9 +120,17 @@ when a hazard reaches z=0, remove health/game over and destroy hazard
     });
   }
 
+
+
   function createHazard(){
-    let {cubeVertices, cubeEdges} = createCube({x:(Math.floor(Math.random()*11)-5), y: (Math.floor(Math.random()*11)-5), z:11});
-    hazardLs.push({vertices: cubeVertices, edges: cubeEdges});
+    if(Math.random() < 0.5){
+      let {vertices, edges, faces} = createDiamond({x:(Math.floor(Math.random()*11)-5), y: (Math.floor(Math.random()*11)-5), z:11});
+      hazardLs.push({vertices: vertices, edges: edges, faces: faces});
+    }
+    else{
+      let {cubeVertices, cubeEdges, cubeFaces} = createCube({x:(Math.floor(Math.random()*11)-5), y: (Math.floor(Math.random()*11)-5), z:11});
+      hazardLs.push({vertices: cubeVertices, edges: cubeEdges, faces: cubeFaces});
+    }
     
   }
 
@@ -143,14 +151,24 @@ when a hazard reaches z=0, remove health/game over and destroy hazard
 
     clearPixelGrid();
 
+    // Sort the entire hazard list from furthest to closest
+    hazardLs.sort((a, b) => {
+      let avgZA = a.vertices.reduce((sum, v) => sum + v.z, 0) / a.vertices.length;
+      let avgZB = b.vertices.reduce((sum, v) => sum + v.z, 0) / b.vertices.length;
+      
+      return avgZB - avgZA; 
+    });
+
     // Draw each hazard object
     for (let obj of hazardLs) {
       if(obj.vertices.some(v => v.z <= camera.z)) {
         // Remove the object if it is behind the camera
+        console.log(gameOver);
+        gameOver=true;
         hazardLs.splice(hazardLs.indexOf(obj), 1);
         continue; // Skip drawing this object
       }
-      draw(obj.vertices, obj.edges, camera);
+      draw(obj.vertices, obj.edges, obj.faces, camera);
     }
     // Draw the stars
     for (let star of stars) {
@@ -179,12 +197,12 @@ when a hazard reaches z=0, remove health/game over and destroy hazard
       }
     }
 
-    moveHazard();
+    
     
     
   }
 
-  function draw(vertices, edges, camera) {
+  function draw(vertices, edges, faces, camera) {
 
     // here we will store u,v coordinates for the vertices, 
     // projected onto our 2d plane
@@ -199,15 +217,16 @@ when a hazard reaches z=0, remove health/game over and destroy hazard
 
        //console.log("camera-relative position");
        let camVert = {}; 
-       camVert.x = vertices[v].x - camera.x; //**** TO DO
-       camVert.y = vertices[v].y - camera.y; //**** TO DO
-       camVert.z = vertices[v].z - camera.z; //**** TO DO
+       camVert.x = vertices[v].x - camera.x; 
+       camVert.y = vertices[v].y - camera.y; 
+       camVert.z = vertices[v].z - camera.z; 
        //console.log( camVert );
 
        //console.log("projected position"); 
        let canvasPos = {};
-       canvasPos.u = camVert.x / camVert.z; //**** TO DO  
-       canvasPos.v = camVert.y / camVert.z; //**** TO DO 
+       canvasPos.u = camVert.x / camVert.z; 
+       canvasPos.v = camVert.y / camVert.z; 
+       canvasPos.z = camVert.z;  
        //console.log( canvasPos );
 
        //console.log("scale and center"); 
@@ -223,34 +242,94 @@ when a hazard reaches z=0, remove health/game over and destroy hazard
     //loop through the edges
     //  find the newly computed projected vertices - 2 per edge
     //  draw the line
-    for(let e = 0; e < edges.length; e++){
-      for(let i=0; i<=2;i++){
-        let e1 = edges[e][i]; //idx
+
+    if(mode === "rasterized"){
+      let sortedFaces = faces.slice().sort((a, b) => calcDepthDiff([a, b], projectedVertices));
+      for(let e = 0; e < sortedFaces.length; e++){
+        let faceIndices = sortedFaces[e].indices;
+        for(let i=0; i<=2;i++){
+          let e1 = faceIndices[i]; //idx
+          let u1 = projectedVertices[ e1 ].u; 
+          let v1 = rows - projectedVertices[ e1 ].v;
+          let e2 = faceIndices[i===2?0:(i+1)]; //idx
+          let u2 = projectedVertices[ e2 ].u;
+          let v2 = rows - projectedVertices[ e2 ].v;
+          makePixelatedLine(u1, v1, u2, v2, "#222222");
+        }
+      }
+
+      for(let e = 0; e < sortedFaces.length; e++){
+        let faceIndices = sortedFaces[e].indices;
+        let faceColor = sortedFaces[e].color;
+
+        let p0 = projectedVertices[faceIndices[0]];
+        let p1 = projectedVertices[faceIndices[1]];
+        let p2 = projectedVertices[faceIndices[2]];
+
+        let y0 = rows - p0.v, y1 = rows - p1.v, y2 = rows - p2.v;
+
+        // Find the min and max X/Y for this specific triangle
+        let minX = Math.max(0, Math.floor(Math.min(p0.u, p1.u, p2.u)));
+        let maxX = Math.min(cols - 1, Math.ceil(Math.max(p0.u, p1.u, p2.u)));
+        let minY = Math.max(0, Math.floor(Math.min(y0, y1, y2)));
+        let maxY = Math.min(rows - 1, Math.ceil(Math.max(y0, y1, y2)));
+
+        for(let u=minX; u<maxX; u++){
+          for(let v=minY; v<maxY; v++){
+            if(checkPixelInFace(u, v, faceIndices, projectedVertices)){
+              setPixelColor(u, v, faceColor);
+            }
+          }
+        }
+      }
+    }
+    else if(mode === "wireframe"){
+      for(let e = 0; e < edges.length; e++){
+        //first vertex
+        let e1 = edges[e][0]; //idx
         let u1 = projectedVertices[ e1 ].u; 
-        let v1 = rows - projectedVertices[ e1 ].v;
-        let e2 = edges[e][i===2?0:(i+1)]; //idx
+        let v1 = rows - projectedVertices[ e1 ].v;  //TO DO- explain why did I do this? 
+        // Because the canvas coordinate system has the origin(0,0) at the top-left corner
+
+        //second vertex
+        let e2 = edges[e][1]; //idx
         let u2 = projectedVertices[ e2 ].u;
-        let v2 = rows - projectedVertices[ e2 ].v;
+        let v2 = rows - projectedVertices[ e2 ].v;  //TO DO- explain why did I do this?
+        // Because the canvas coordinate system has the origin(0,0) at the top-left corner
+
         makePixelatedLine(u1, v1, u2, v2, "#00FF00");
       }
-      //first vertex
-      /*let e1 = edges[e][0]; //idx
-      let u1 = projectedVertices[ e1 ].u; 
-      let v1 = rows - projectedVertices[ e1 ].v;  //TO DO- explain why did I do this? 
-      // Because the canvas coordinate system has the origin(0,0) at the top-left corner
-
-      //second vertex
-      let e2 = edges[e][1]; //idx
-      let u2 = projectedVertices[ e2 ].u;
-      let v2 = rows - projectedVertices[ e2 ].v;  //TO DO- explain why did I do this?*/
-
       
     }
-
-
-
   }
 
+  function checkPixelInFace(u, v, face, projectedVertices) {
+    let p0 = projectedVertices[face[0]];
+    let p1 = projectedVertices[face[1]];
+    let p2 = projectedVertices[face[2]];
+
+    // Convert to 2D coordinates
+    let A = { x: p0.u, y: rows - p0.v };
+    let B = { x: p1.u, y: rows - p1.v };
+    let C = { x: p2.u, y: rows - p2.v };
+
+    // Barycentric coordinates
+    let areaABC = Math.abs((A.x*(B.y-C.y) + B.x*(C.y-A.y) + C.x*(A.y-B.y)) / 2.0);
+    let areaPAB = Math.abs((u*(A.y-B.y) + A.x*(B.y-v) + B.x*(v-A.y)) / 2.0);
+    let areaPAC = Math.abs((u*(A.y-C.y) + A.x*(C.y-v) + C.x*(v-A.y)) / 2.0);
+    let areaPBC = Math.abs((u*(B.y-C.y) + B.x*(C.y-v) + C.x*(v-B.y)) / 2.0);
+
+    let sum = areaPAB + areaPAC + areaPBC;
+    let tolerance = 0.01;
+    let isInside = Math.abs(areaABC - sum) < tolerance;
+    return isInside;
+  }
+
+  function calcDepthDiff(faces, projectedVertices) {
+    let depthA = (projectedVertices[faces[0].indices[0]].z + projectedVertices[faces[0].indices[1]].z + projectedVertices[faces[0].indices[2]].z) / 3;
+    let depthB = (projectedVertices[faces[1].indices[0]].z + projectedVertices[faces[1].indices[1]].z + projectedVertices[faces[1].indices[2]].z) / 3;
+    return depthB - depthA;
+  }
   function drawStaticObjects() {
     // Draw the static ship frame with direct canvas coordinates
     let c = "#FFFFFF"; // White color for the HUD
@@ -291,7 +370,7 @@ when a hazard reaches z=0, remove health/game over and destroy hazard
 
   // do nothing for now....
     document.addEventListener("keydown", (event) => {
-
+      if(!gameOver){
       event.preventDefault();
        switch (event.code) {
         case "ArrowUp":
@@ -304,6 +383,7 @@ when a hazard reaches z=0, remove health/game over and destroy hazard
             }
           }
           console.log("Up arrow pressed");
+          moveHazard();
           drawAllObjects(hazardLs, camera);
           moveCount+=1;
           break;
@@ -317,6 +397,7 @@ when a hazard reaches z=0, remove health/game over and destroy hazard
             }
           }
           console.log("Down arrow pressed");
+          moveHazard();
           drawAllObjects(hazardLs, camera);
           moveCount+=1;
           break;
@@ -330,6 +411,7 @@ when a hazard reaches z=0, remove health/game over and destroy hazard
             }
           }
           console.log("Left arrow pressed");
+          moveHazard();
           drawAllObjects(hazardLs, camera);
           moveCount+=1;
           break;
@@ -343,6 +425,7 @@ when a hazard reaches z=0, remove health/game over and destroy hazard
             }
           }
           console.log("Right arrow pressed");
+          moveHazard();
           drawAllObjects(hazardLs, camera);
           moveCount+=1;
           break;
@@ -366,15 +449,44 @@ when a hazard reaches z=0, remove health/game over and destroy hazard
               updateHUD(); // Update the HUD with the new score
             }
           }
+          moveHazard();
           drawAllObjects(hazardLs, camera);
 
+          break;
+
+        case "KeyF":
+          if (mode === "rasterized") {
+            mode = "wireframe";
+          } else {
+            mode = "rasterized";
+          }
+          console.log("Mode switched to:", mode);
+          drawAllObjects(hazardLs, camera);
           break;
 
         default:
           return; 
       
       }
-    });
+    }else{
+      console.log("works");
+        ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  ctx.fillStyle = "#FF3333";
+  ctx.font = "bold 64px Arial";
+  ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 40);
+
+  ctx.fillStyle = "#FFFFFF";
+  ctx.font = "32px Arial";
+  ctx.fillText(`SCORE: ${score}`, canvas.width / 2, canvas.height / 2 + 30);
+      if(event.code==="KeyR"){
+        location.reload();
+      }
+    }});
 
   function resizeCanvas() {
     canvas.width = window.innerWidth;
@@ -394,32 +506,46 @@ when a hazard reaches z=0, remove health/game over and destroy hazard
     { x:  1,  y: -1, z:  -1}, // G, idx 6
     { x: -1,  y: -1, z: -1}   // H, idx 7
   ];
-
-  // an array of the indics for the two vertices in each edge
+  
   let cubeEdges = [
+    [0, 1], // AB
+    [0, 2], // AC
+    [0, 4], // AE
+    [1, 3], // BD
+    [1, 5], // BF
+    [2, 3], // CD
+    [2, 6], // CG
+    [3, 7], // DH
+    [4, 5], // EF
+    [4, 6], // EG
+    [5, 7], // FH
+    [6, 7]  // GH
+  ];
+  // an array of the indics for the two vertices in each edge
+  let cubeFaces = [
   // Front face (A,B,D,C)
-  [0, 1, 3], // ABD
-  [0, 3, 2], // ADC
+  { indices: [0, 1, 3], color: "#00FF00"}, // ABD
+  { indices: [0, 3, 2], color: "#00FF00"}, // ADC
 
   // Back face (E,F,H,G)
-  [4, 5, 7], // EFH
-  [4, 7, 6], // EHG
+  { indices: [4, 5, 7], color: "#FF0000"}, // EFH
+  { indices: [4, 7, 6], color: "#FF0000"}, // EHG
 
   // Left face (A,C,G,E)
-  [0, 2, 6], // ACG
-  [0, 6, 4], // AGE
+  { indices: [0, 2, 6], color: "#0000FF"}, // ACG
+  { indices: [0, 6, 4], color: "#0000FF"}, // AGE
 
   // Right face (B,D,H,F)
-  [1, 3, 7], // BDH
-  [1, 7, 5], // BHF
+  { indices: [1, 3, 7], color: "#FFFF00"}, // BDH
+  { indices: [1, 7, 5], color: "#FFFF00"}, // BHF
 
   // Top face (A,B,F,E)
-  [0, 1, 5], // ABF
-  [0, 5, 4], // AFE
+  { indices: [0, 1, 5], color: "#FF00FF"}, // ABF
+  { indices: [0, 5, 4], color: "#FF00FF"}, // AFE
 
   // Bottom face (C,D,H,G)
-  [2, 3, 7], // CDH
-  [2, 7, 6], // CHG
+  { indices: [2, 3, 7], color: "#00FFFF"}, // CDH
+  { indices: [2, 7, 6], color: "#00FFFF"}, // CHG
 ];
 
   for (let i = 0; i < cubeVertices.length; i++) {
@@ -428,41 +554,79 @@ when a hazard reaches z=0, remove health/game over and destroy hazard
     cubeVertices[i].z += origin.z;
   }
 
-  return {cubeVertices, cubeEdges};
+  return {cubeVertices, cubeEdges, cubeFaces};
   }
 
-  function isObjectTargeted(object, camera) {
-    // Check if the object is within the target square in the center of the ship frame
-    // Determine the center of the object in 3D space
-    let center = { x: 0, y: 0, z: 0 };
-    for (let vertex of object.vertices) {
-      center.x += vertex.x;
-      center.y += vertex.y;
-      center.z += vertex.z;
+  function createDiamond(origin) {
+    let diamondVertices = [
+      { x:  0,  y:  1.5, z:  0 }, // 0: Top Peak
+      { x:  0,  y: -1.5, z:  0 }, // 1: Bottom Peak
+      { x:  1,  y:  0,   z:  1 }, // 2: Equator Front-Right
+      { x: -1,  y:  0,   z:  1 }, // 3: Equator Front-Left
+      { x: -1,  y:  0,   z: -1 }, // 4: Equator Back-Left
+      { x:  1,  y:  0,   z: -1 }  // 5: Equator Back-Right
+    ];
+
+    let diamondEdges = [
+      // Top half edges
+      [0, 2], [0, 3], [0, 4], [0, 5],
+      // Bottom half edges
+      [1, 2], [1, 3], [1, 4], [1, 5],
+      // Equator edges
+      [2, 3], [3, 4], [4, 5], [5, 2]
+    ];
+
+    let diamondFaces = [
+      // Top half faces
+      { indices: [0, 2, 3], color: "#FF0000" }, // Front (Red)
+      { indices: [0, 3, 4], color: "#00FF00" }, // Left (Green)
+      { indices: [0, 4, 5], color: "#0055FF" }, // Back (Blue)
+      { indices: [0, 5, 2], color: "#FFFF00" }, // Right (Yellow)
+
+      // Bottom half faces
+      { indices: [1, 2, 3], color: "#FF8800" }, // Bottom-Front (Orange)
+      { indices: [1, 3, 4], color: "#00FFFF" }, // Bottom-Left (Cyan)
+      { indices: [1, 4, 5], color: "#FF00FF" }, // Bottom-Back (Magenta)
+      { indices: [1, 5, 2], color: "#FFFFFF" }  // Bottom-Right (White)
+    ];
+
+    // Shift the diamond to the requested origin point
+    for (let i = 0; i < diamondVertices.length; i++) {
+      diamondVertices[i].x += origin.x;
+      diamondVertices[i].y += origin.y;
+      diamondVertices[i].z += origin.z;
     }
-    center.x /= object.vertices.length;
-    center.y /= object.vertices.length;
-    center.z /= object.vertices.length;
 
-    // Determine the position of the center relative to the camera
-    let camCoords = {
-      x: center.x - camera.x,
-      y: center.y - camera.y,
-      z: center.z - camera.z
+    return { 
+      vertices: diamondVertices, 
+      edges: diamondEdges, 
+      faces: diamondFaces 
     };
+  }
+  function isObjectTargeted(object, camera) {
+    let minU = Infinity, maxU = -Infinity, minV = Infinity, maxV = -Infinity;
+    for (let v of object.vertices) {
+      let camCoords = {
+        x: v.x - camera.x,
+        y: v.y - camera.y,
+        z: v.z - camera.z
+      };
 
-    // Project the center onto the 2D plane
-    let projected = {
-      u: camCoords.x / camCoords.z,
-      v: camCoords.y / camCoords.z
-    };
+      let projected = {
+        u: camCoords.x / camCoords.z,
+        v: camCoords.y / camCoords.z
+      };
 
-    // Scale and center the projected coordinates
-    projected.u = projected.u * cols + cols / 2;
-    projected.v = projected.v * rows + rows / 2;
-    projected.v = rows - projected.v; // Invert v for canvas coordinates
+      projected.u = projected.u * cols + cols / 2;
+      projected.v = projected.v * rows + rows / 2;
+      projected.v = rows - projected.v; // Invert v for canvas coordinates
 
-    console.log("Projected coordinates of object center:", projected);
+      minU = Math.min(minU, projected.u);
+      maxU = Math.max(maxU, projected.u);
+      minV = Math.min(minV, projected.v);
+      maxV = Math.max(maxV, projected.v);
+    }
+
     // Check if the projected coordinates are within the target square
     let targetLeft = 1.9 * cols/ 4;
     let targetRight = 2.1 * cols / 4;
@@ -476,8 +640,21 @@ when a hazard reaches z=0, remove health/game over and destroy hazard
       bottom: targetBottom
     });
 
-    return projected.u >= targetLeft && projected.u <= targetRight &&
-           projected.v <= targetTop && projected.v >= targetBottom;
+    console.log("Object boundaries:", {
+      minU: minU,
+      maxU: maxU,
+      minV: minV,
+      maxV: maxV
+    });
+
+    let isOutside = (
+      maxU < targetLeft ||   // Object is entirely to the left
+      minU > targetRight ||  // Object is entirely to the right
+      maxV < targetBottom || // Object is entirely above
+      minV > targetTop       // Object is entirely below
+    );
+
+    return !isOutside; // Return true if the object is within the target square
 
   }
 
