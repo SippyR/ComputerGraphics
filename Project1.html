@@ -82,7 +82,7 @@ when a hazard reaches z=0, remove health/game over and destroy hazard
   }
 
   function makePixelatedLine(u1, v1, u2, v2, color){
-    console.log("makePixelatedLine", u1, v1, u2, v2, color);
+    //console.log("makePixelatedLine", u1, v1, u2, v2, color);
 
     let dx = u2 - u1;
     let dy = v2 - v1;
@@ -105,7 +105,7 @@ when a hazard reaches z=0, remove health/game over and destroy hazard
     }
 
   }
-
+  let gameOver=false;
   let camera = {x: 0, y: 0, z: -10};
   let hazardLs= [];
   let moveCount=0;
@@ -163,6 +163,8 @@ when a hazard reaches z=0, remove health/game over and destroy hazard
     for (let obj of hazardLs) {
       if(obj.vertices.some(v => v.z <= camera.z)) {
         // Remove the object if it is behind the camera
+        console.log(gameOver);
+        gameOver=true;
         hazardLs.splice(hazardLs.indexOf(obj), 1);
         continue; // Skip drawing this object
       }
@@ -195,7 +197,7 @@ when a hazard reaches z=0, remove health/game over and destroy hazard
       }
     }
 
-    moveHazard();
+    
     
     
   }
@@ -368,7 +370,7 @@ when a hazard reaches z=0, remove health/game over and destroy hazard
 
   // do nothing for now....
     document.addEventListener("keydown", (event) => {
-
+      if(!gameOver){
       event.preventDefault();
        switch (event.code) {
         case "ArrowUp":
@@ -381,6 +383,7 @@ when a hazard reaches z=0, remove health/game over and destroy hazard
             }
           }
           console.log("Up arrow pressed");
+          moveHazard();
           drawAllObjects(hazardLs, camera);
           moveCount+=1;
           break;
@@ -394,6 +397,7 @@ when a hazard reaches z=0, remove health/game over and destroy hazard
             }
           }
           console.log("Down arrow pressed");
+          moveHazard();
           drawAllObjects(hazardLs, camera);
           moveCount+=1;
           break;
@@ -407,6 +411,7 @@ when a hazard reaches z=0, remove health/game over and destroy hazard
             }
           }
           console.log("Left arrow pressed");
+          moveHazard();
           drawAllObjects(hazardLs, camera);
           moveCount+=1;
           break;
@@ -420,6 +425,7 @@ when a hazard reaches z=0, remove health/game over and destroy hazard
             }
           }
           console.log("Right arrow pressed");
+          moveHazard();
           drawAllObjects(hazardLs, camera);
           moveCount+=1;
           break;
@@ -443,6 +449,7 @@ when a hazard reaches z=0, remove health/game over and destroy hazard
               updateHUD(); // Update the HUD with the new score
             }
           }
+          moveHazard();
           drawAllObjects(hazardLs, camera);
 
           break;
@@ -461,7 +468,25 @@ when a hazard reaches z=0, remove health/game over and destroy hazard
           return; 
       
       }
-    });
+    }else{
+      console.log("works");
+        ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  ctx.fillStyle = "#FF3333";
+  ctx.font = "bold 64px Arial";
+  ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 40);
+
+  ctx.fillStyle = "#FFFFFF";
+  ctx.font = "32px Arial";
+  ctx.fillText(`SCORE: ${score}`, canvas.width / 2, canvas.height / 2 + 30);
+      if(event.code==="KeyR"){
+        location.reload();
+      }
+    }});
 
   function resizeCanvas() {
     canvas.width = window.innerWidth;
