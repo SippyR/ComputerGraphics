@@ -26,4 +26,4 @@ However, throughout the development process, we decided against the trench run a
 ## Future Work
 
 ## Demo Video
-![Computer Graphics Project 1 Demo](./Videos/ComputerGraphicsProject1.mp4)
+[Computer Graphics Project 1 Demo](https://youtu.be/ilgxW7lQyIg?si=RtiiIiGtI6SiYOt1)
